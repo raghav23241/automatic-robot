@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pokémon Card Grader</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="pokeball" aria-hidden="true"></span>
+      <h1>Pokémon Card Grader</h1>
+    </div>
+    <p class="tagline">Upload a card to estimate its condition grade (1–10)</p>
+  </header>
+
+  <main class="layout">
+    <!-- Left: upload + preview -->
+    <section class="panel preview-panel">
+      <h2>1. Your card</h2>
+
+      <div id="dropzone" class="dropzone" tabindex="0" role="button"
+           aria-label="Upload a card image">
+        <input id="fileInput" type="file" accept="image/*" hidden />
+        <div class="dropzone-inner">
+          <svg viewBox="0 0 24 24" class="upload-icon" aria-hidden="true">
+            <path d="M12 16V4m0 0L8 8m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"
+                  fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <p><strong>Click to upload</strong> or drag &amp; drop</p>
+          <p class="hint">A flat, straight-on photo or scan works best</p>
+        </div>
+      </div>
+
+      <figure class="card-figure" id="cardFigure" hidden>
+        <div class="canvas-wrap">
+          <canvas id="cardCanvas"></canvas>
+          <canvas id="overlayCanvas" class="overlay"></canvas>
+        </div>
+        <figcaption>
+          <button id="resetBtn" class="link-btn" type="button">Choose a different image</button>
+        </figcaption>
+      </figure>
+    </section>
+
+    <!-- Right: assessment + result -->
+    <section class="panel grade-panel">
+      <h2>2. Condition</h2>
+      <p class="muted">
+        Centering is measured automatically from the image. Rate the rest on a
+        1–10 scale (10 = flawless).
+      </p>
+
+      <div class="subgrade" id="centeringRow">
+        <div class="subgrade-head">
+          <label>Centering</label>
+          <span class="auto-badge">auto</span>
+          <output id="centeringValue">—</output>
+        </div>
+        <div class="meter"><div class="meter-fill" id="centeringMeter"></div></div>
+        <p class="subgrade-note" id="centeringNote">Upload a card to measure centering.</p>
+      </div>
+
+      <div class="subgrade">
+        <div class="subgrade-head">
+          <label for="corners">Corners</label>
+          <output id="cornersValue">8.0</output>
+        </div>
+        <input type="range" id="corners" min="1" max="10" step="0.5" value="8" />
+        <p class="subgrade-note">Sharp &amp; clean = 10, fraying/whitening lowers it.</p>
+      </div>
+
+      <div class="subgrade">
+        <div class="subgrade-head">
+          <label for="edges">Edges</label>
+          <output id="edgesValue">8.0</output>
+        </div>
+        <input type="range" id="edges" min="1" max="10" step="0.5" value="8" />
+        <p class="subgrade-note">Check for nicks and whitening along all four sides.</p>
+      </div>
+
+      <div class="subgrade">
+        <div class="subgrade-head">
+          <label for="surface">Surface</label>
+          <output id="surfaceValue">8.0</output>
+        </div>
+        <input type="range" id="surface" min="1" max="10" step="0.5" value="8" />
+        <p class="subgrade-note">Scratches, print lines, dents, holo scratches.</p>
+      </div>
+
+      <div class="result" id="result" hidden>
+        <div class="grade-badge">
+          <span class="grade-number" id="gradeNumber">—</span>
+          <span class="grade-scale">/10</span>
+        </div>
+        <div class="grade-text">
+          <strong id="gradeLabel">—</strong>
+          <span id="gradeDesc" class="muted"></span>
+        </div>
+      </div>
+
+      <p class="disclaimer">
+        This is an estimate to help you self-assess a card. It is not affiliated
+        with PSA, CGC, or Beckett and is not an official grade.
+      </p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
