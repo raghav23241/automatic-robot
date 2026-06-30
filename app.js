@@ -125,21 +125,40 @@ function drawToCanvas(img) {
 /* Centering analysis                                                  */
 /* ------------------------------------------------------------------ */
 
-function analyzeCentering() {
+function analyzeCentering(deskewed) {
   const ctx = els.cardCanvas.getContext("2d");
   const { width: W, height: H } = els.cardCanvas;
   const data = ctx.getImageData(0, 0, W, H).data;
 
-  // Grayscale + simple gradient magnitude to find strong edges.
-  const gray = new Float32Array(W * H);
-  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
-    gray[p] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  // 0) Correct mild skew once, up front, so border widths are measured
+  //    against a card whose edges are axis-aligned.
+  const bg = sampleBackground(data, W, H);
+  if (!deskewed && bg) {
+    const angle = estimateSkew(data, W, H, bg);
+    if (Math.abs(angle) > 0.012 && Math.abs(angle) < 0.22) {
+      deskew(angle, bg);
+      return analyzeCentering(true); // re-run on the straightened image
+    }
   }
 
-  // 1) Find the card boundary by trimming near-uniform background margins.
-  const card = findCardBounds(gray, W, H);
+  const gray = grayscale(data, W, H);
 
-  // 2) Within the card, find the inner frame using per-row/col edge energy.
+  // 1) Find the card within the photo. Background-colour segmentation is the
+  //    primary method; fall back to edge-energy when the background is busy.
+  const card = bg
+    ? findCardBounds(data, W, H, bg)
+    : findCardBoundsByEnergy(gray, W, H);
+
+  if (!card) {
+    failCentering(
+      "Couldn't confidently locate the card against the background — try a " +
+      "flatter, straight-on image on a plain surface. Centering was left out " +
+      "of the grade."
+    );
+    return;
+  }
+
+  // 2) Within the card, find the inner artwork frame.
   const inner = findInnerFrame(gray, W, H, card);
 
   // 3) Border widths.
@@ -150,13 +169,11 @@ function analyzeCentering() {
 
   drawOverlay(card, inner);
 
-  // Guard against degenerate detection.
   if (left < 1 || right < 1 || top < 1 || bottom < 1) {
-    state.centering = null;
-    els.centeringValue.textContent = "n/a";
-    els.centeringMeter.style.width = "0%";
-    els.centeringNote.textContent =
-      "Couldn't confidently detect the borders. Centering left out of the grade — try a flatter, straight-on image.";
+    failCentering(
+      "Couldn't confidently detect the inner frame. Centering left out of the " +
+      "grade — try a flatter, straight-on image."
+    );
     return;
   }
 
@@ -172,8 +189,102 @@ function analyzeCentering() {
   els.centeringNote.textContent = `Left/Right ${hPct}, Top/Bottom ${vPct}.`;
 }
 
-// Trim uniform margins (background) from each side to find the card box.
-function findCardBounds(gray, W, H) {
+function failCentering(message) {
+  state.centering = null;
+  els.centeringValue.textContent = "n/a";
+  els.centeringMeter.style.width = "0%";
+  els.centeringNote.textContent = message;
+}
+
+function grayscale(data, W, H) {
+  const gray = new Float32Array(W * H);
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    gray[p] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  }
+  return gray;
+}
+
+// Sample the four corners; return the mean colour only if the corners agree
+// (i.e. there is a consistent plain background to segment against).
+function sampleBackground(data, W, H) {
+  const s = Math.max(4, Math.round(Math.min(W, H) * 0.05));
+  const corners = [
+    [0, 0], [W - s, 0], [0, H - s], [W - s, H - s],
+  ].map(([px, py]) => avgPatch(data, W, px, py, s));
+
+  const mean = {
+    r: (corners[0].r + corners[1].r + corners[2].r + corners[3].r) / 4,
+    g: (corners[0].g + corners[1].g + corners[2].g + corners[3].g) / 4,
+    b: (corners[0].b + corners[1].b + corners[2].b + corners[3].b) / 4,
+  };
+  const maxDev = Math.max(
+    ...corners.map((c) =>
+      Math.abs(c.r - mean.r) + Math.abs(c.g - mean.g) + Math.abs(c.b - mean.b)
+    )
+  );
+  // Corners disagree -> background is not plain/uniform; don't trust it.
+  if (maxDev > 95) return null;
+  return mean;
+}
+
+function avgPatch(data, W, px, py, s) {
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let y = py; y < py + s; y++) {
+    for (let x = px; x < px + s; x++) {
+      const i = (y * W + x) * 4;
+      r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
+    }
+  }
+  return { r: r / n, g: g / n, b: b / n };
+}
+
+const BG_TOL = 60; // colour distance (sum of abs channel diffs) for "background"
+
+function isForeground(data, idx, bg) {
+  return (
+    Math.abs(data[idx] - bg.r) +
+      Math.abs(data[idx + 1] - bg.g) +
+      Math.abs(data[idx + 2] - bg.b) >
+    BG_TOL
+  );
+}
+
+// Primary card detection: a row/column belongs to the card once enough of its
+// pixels differ from the sampled background colour.
+function findCardBounds(data, W, H, bg) {
+  const colCount = new Int32Array(W);
+  const rowCount = new Int32Array(H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (isForeground(data, (y * W + x) * 4, bg)) {
+        colCount[x]++;
+        rowCount[y]++;
+      }
+    }
+  }
+  const x0 = edgeFromSide(colCount, H * 0.35, 1);
+  const x1 = edgeFromSide(colCount, H * 0.35, -1);
+  const y0 = edgeFromSide(rowCount, W * 0.35, 1);
+  const y1 = edgeFromSide(rowCount, W * 0.35, -1);
+
+  if (x1 - x0 < W * 0.2 || y1 - y0 < H * 0.2) return null; // degenerate
+  return { x0, x1, y0, y1 };
+}
+
+// First index (from the given side) whose foreground count clears the threshold.
+function edgeFromSide(counts, thresh, dir) {
+  const n = counts.length;
+  if (dir > 0) {
+    for (let i = 0; i < n; i++) if (counts[i] > thresh) return i;
+    return 0;
+  }
+  for (let i = n - 1; i >= 0; i--) if (counts[i] > thresh) return i;
+  return n - 1;
+}
+
+// Fallback used when the background is too busy to segment by colour: trim
+// margins by per-row / per-column edge energy.
+function findCardBoundsByEnergy(gray, W, H) {
   const colVar = new Float32Array(W);
   const rowVar = new Float32Array(H);
   for (let y = 0; y < H; y++) {
@@ -183,20 +294,20 @@ function findCardBounds(gray, W, H) {
       rowVar[y] += d;
     }
   }
-  const x0 = firstActive(colVar, 1, W, 1);
-  const x1 = firstActive(colVar, W - 2, -1, 1);
-  const y0 = firstActive(rowVar, 1, H, 1);
-  const y1 = firstActive(rowVar, H - 2, -1, 1);
-  return {
-    x0: Math.min(x0, x1),
-    x1: Math.max(x0, x1),
-    y0: Math.min(y0, y1),
-    y1: Math.max(y0, y1),
+  const x0 = firstActive(colVar, 1, W);
+  const x1 = firstActive(colVar, W - 2, -1);
+  const y0 = firstActive(rowVar, 1, H);
+  const y1 = firstActive(rowVar, H - 2, -1);
+  const box = {
+    x0: Math.min(x0, x1), x1: Math.max(x0, x1),
+    y0: Math.min(y0, y1), y1: Math.max(y0, y1),
   };
+  if (box.x1 - box.x0 < W * 0.2 || box.y1 - box.y0 < H * 0.2) return null;
+  return box;
 }
 
 // Walk inward from an end until edge energy exceeds a fraction of the peak.
-function firstActive(arr, start, end, step) {
+function firstActive(arr, start, end) {
   const peak = Math.max(...arr);
   const thresh = peak * 0.18;
   const dir = end > start ? 1 : -1;
@@ -204,6 +315,65 @@ function firstActive(arr, start, end, step) {
     if (arr[i] > thresh) return i;
   }
   return start;
+}
+
+/* ---- Skew estimation & correction -------------------------------- */
+
+// Estimate the card's tilt from the orientation of the foreground mask. The
+// card is the dominant non-background blob; the principal axis of its pixel
+// distribution (via second moments) is its long side. How far that axis leans
+// from vertical is the skew angle. This is robust where a single-edge fit is
+// not — a rotated rectangle's leftmost-pixel trace is a symmetric "V" that
+// averages to zero slope.
+function estimateSkew(data, W, H, bg) {
+  let n = 0, sx = 0, sy = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (isForeground(data, (y * W + x) * 4, bg)) {
+        n++; sx += x; sy += y;
+      }
+    }
+  }
+  if (n < W * H * 0.05) return 0; // too little foreground to trust
+
+  const cx = sx / n, cy = sy / n;
+  let Sxx = 0, Syy = 0, Sxy = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (isForeground(data, (y * W + x) * 4, bg)) {
+        const dx = x - cx, dy = y - cy;
+        Sxx += dx * dx; Syy += dy * dy; Sxy += dx * dy;
+      }
+    }
+  }
+  // Angle of the major axis from the x-axis. For an upright tall card this is
+  // ~±90°; the deviation from vertical is the tilt we want to undo.
+  const major = 0.5 * Math.atan2(2 * Sxy, Sxx - Syy);
+  let tilt = major - Math.PI / 2;
+  if (tilt < -Math.PI / 2) tilt += Math.PI;
+  if (tilt > Math.PI / 2) tilt -= Math.PI;
+  return tilt; // radians; how far the card's long axis leans from vertical
+}
+
+// Rotate the source canvas by -angle about its centre, filling exposed corners
+// with the background colour so detection isn't tripped by black wedges.
+function deskew(angle, bg) {
+  const c = els.cardCanvas;
+  const { width: W, height: H } = c;
+  const tmp = document.createElement("canvas");
+  tmp.width = W;
+  tmp.height = H;
+  tmp.getContext("2d").drawImage(c, 0, 0);
+
+  const ctx = c.getContext("2d");
+  ctx.save();
+  ctx.fillStyle = `rgb(${bg.r | 0},${bg.g | 0},${bg.b | 0})`;
+  ctx.fillRect(0, 0, W, H);
+  ctx.translate(W / 2, H / 2);
+  ctx.rotate(-angle);
+  ctx.translate(-W / 2, -H / 2);
+  ctx.drawImage(tmp, 0, 0);
+  ctx.restore();
 }
 
 // Inside the card box, the inner artwork frame is where edge energy spikes

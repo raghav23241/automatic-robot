@@ -35,17 +35,25 @@ python3 -m http.server 8000   # then visit http://localhost:8000
 
 ## How centering is measured
 
-1. **Card detection** — background margins are trimmed by walking inward from
-   each edge until per-row / per-column brightness change exceeds a threshold.
-2. **Inner frame detection** — within the card, the strongest edge between the
+1. **Skew correction** — the card's tilt is estimated from the slope of its left
+   edge (a straight-line fit through the first foreground pixel of each row). A
+   mild tilt is corrected by rotating the image so the card's edges are
+   axis-aligned before anything is measured.
+2. **Card detection** — the four corners are sampled to learn the background
+   color, then each row/column is classified as card-or-background by how much
+   it differs from that color. This reliably finds the card edge even across a
+   plain colored border (where pure edge-energy detection fails). When the
+   background is too busy to segment, it falls back to edge-energy trimming.
+3. **Inner frame detection** — within the card, the strongest edge between the
    colored border and the artwork is located on each side.
-3. **Scoring** — border widths give left/right and top/bottom ratios. A 50/50
+4. **Scoring** — border widths give left/right and top/bottom ratios. A 50/50
    split scores 10; the grade falls off as the split worsens (≈60/40 → ~8.5,
    ≈70/30 → ~6). The worse of the two axes drives the score.
 
-Best results come from a flat, evenly lit, straight-on image. Skew, glare, or a
-busy background can throw off detection — when borders can't be found
-confidently, centering is dropped from the grade and the rest still apply.
+Best results come from a flat, evenly lit, straight-on image on a plain surface.
+Heavy skew, glare, or a busy background can still throw off detection — when the
+card or its borders can't be found confidently, centering is dropped from the
+grade and the rest still apply.
 
 ## Tech
 
