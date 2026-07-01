@@ -1,114 +1,189 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pokémon Card Grader</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="styles.css" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GradeVault — Pokémon Card Price Evaluator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="pokeball" aria-hidden="true"></span>
-      <h1>Pokémon Card Grader</h1>
+
+<!-- ============ NAV ============ -->
+<header class="nav">
+  <a class="brand" href="#" data-nav="landing">
+    <svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <polygon points="11,1.5 20,6.5 20,15.5 11,20.5 2,15.5 2,6.5" fill="rgba(201,162,39,0.13)" stroke="#c9a227" stroke-width="1.3"/>
+      <text x="11" y="15.5" text-anchor="middle" fill="#c9a227" font-size="9" font-weight="700" font-family="Space Grotesk,sans-serif">G</text>
+    </svg>
+    <span class="brand-name">GradeVault</span>
+  </a>
+  <nav class="nav-links">
+    <a href="#" class="active" data-nav="landing">Valuate</a>
+    <a href="#" data-nav="report">Market</a>
+    <a href="#" data-nav="collection">Collection</a>
+    <a href="#" data-nav="landing">Graders</a>
+  </nav>
+  <div class="nav-cta">
+    <span class="signin">Sign in</span>
+    <button class="btn-gold" data-nav="landing">Get Started</button>
+  </div>
+</header>
+
+<main>
+<!-- ============ VIEW: LANDING ============ -->
+<section id="view-landing" class="view">
+  <div class="hero">
+    <div class="pill"><span class="dot"></span><span>LIVE PRICE DATA · UPDATED DAILY</span></div>
+    <h1>Know exactly what<br/>your card is worth.</h1>
+    <p class="hero-sub">Upload a photo — we grade it instantly, then show real PSA sold prices for that grade from the past 30 days.</p>
+
+    <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload a card photo">
+      <input id="fileInput" type="file" accept="image/*" hidden />
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" class="dz-icon">
+        <circle cx="20" cy="20" r="18.5" stroke="#c9a227" stroke-width="1.2" stroke-dasharray="3 2"/>
+        <path d="M20 27V17M14 22l6-6 6 6" stroke="#c9a227" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="dz-title">Drop your card photo here</div>
+      <div class="dz-sub">PNG · JPG · HEIC · Max 20MB</div>
+      <span class="btn-gold dz-btn">Choose File</span>
+      <div class="dz-alt">or <span>search by card name</span> →</div>
     </div>
-    <p class="tagline">Upload a card to estimate its condition grade (1–10)</p>
-  </header>
 
-  <main class="layout">
-    <!-- Left: upload + preview -->
-    <section class="panel preview-panel">
-      <h2>1. Your card</h2>
+    <div class="stats">
+      <div class="stat"><div class="stat-num">2.4M+</div><div class="stat-label">Cards indexed</div></div>
+      <div class="stat-div"></div>
+      <div class="stat"><div class="stat-num">$180M</div><div class="stat-label">Sales tracked</div></div>
+      <div class="stat-div"></div>
+      <div class="stat"><div class="stat-num">&lt;10s</div><div class="stat-label">Grade time</div></div>
+      <div class="stat-div"></div>
+      <div class="stat"><div class="stat-num">30d</div><div class="stat-label">Price window</div></div>
+    </div>
+  </div>
 
-      <div id="dropzone" class="dropzone" tabindex="0" role="button"
-           aria-label="Upload a card image">
-        <input id="fileInput" type="file" accept="image/*" hidden />
-        <div class="dropzone-inner">
-          <svg viewBox="0 0 24 24" class="upload-icon" aria-hidden="true">
-            <path d="M12 16V4m0 0L8 8m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"
-                  fill="none" stroke="currentColor" stroke-width="2"
-                  stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          <p><strong>Click to upload</strong> or drag &amp; drop</p>
-          <p class="hint">A flat, straight-on photo or scan works best</p>
+  <div class="recent">
+    <div class="recent-head">
+      <span>Recently Valued</span>
+      <span class="link-gold">View all →</span>
+    </div>
+    <div id="recentStrip" class="recent-strip"><!-- cards injected --></div>
+  </div>
+</section>
+
+<!-- ============ VIEW: REPORT ============ -->
+<section id="view-report" class="view" hidden>
+  <div class="breadcrumb">
+    <span>Market</span><i>/</i><span>Pokémon</span><i>/</i><span id="bcSet">Base Set</span><i>/</i><span id="bcName" class="bc-current">Charizard</span>
+  </div>
+
+  <div class="report">
+    <!-- Left: card + grade -->
+    <aside class="report-left">
+      <div class="card-frame">
+        <canvas id="cardCanvas" width="280" height="392"></canvas>
+        <canvas id="overlayCanvas" class="overlay" width="280" height="392"></canvas>
+      </div>
+      <div class="grade-badge">
+        <div class="gb-label">AI GRADE</div>
+        <div class="gb-num" id="gradeNum">—</div>
+        <div class="gb-tier" id="gradeTier">—</div>
+        <div class="gb-div"></div>
+        <div class="gb-grid">
+          <div><div class="sg-label">Centering</div><div class="sg-val" id="sgCentering">—</div></div>
+          <div><div class="sg-label">Corners</div><div class="sg-val" id="sgCorners">—</div></div>
+          <div><div class="sg-label">Edges</div><div class="sg-val" id="sgEdges">—</div></div>
+          <div><div class="sg-label">Surface</div><div class="sg-val" id="sgSurface">—</div></div>
+        </div>
+      </div>
+      <button class="btn-gold full" id="submitPsa">Submit for PSA Grading</button>
+      <button class="btn-ghost full" data-nav="landing">← Grade another card</button>
+    </aside>
+
+    <!-- Right: info + prices -->
+    <div class="report-right">
+      <h2 id="rName">Charizard</h2>
+      <div class="tags">
+        <span id="rSet">Base Set Shadowless</span><span class="tag-dot"></span>
+        <span id="rMeta">1999 · Holo Rare</span>
+        <span class="tag-num" id="rNum">#4/102</span>
+      </div>
+
+      <div class="statboxes">
+        <div class="sb">
+          <div class="sb-label">30-Day Avg</div>
+          <div class="sb-num" id="sbAvg">$4,450</div>
+          <div class="sb-delta up" id="sbDelta">↑ +12.3%</div>
+        </div>
+        <div class="sb">
+          <div class="sb-label">Sales (30d)</div>
+          <div class="sb-num plain" id="sbSales">12</div>
+          <div class="sb-sub">transactions</div>
+        </div>
+        <div class="sb">
+          <div class="sb-label">Lowest Ask</div>
+          <div class="sb-num plain" id="sbAsk">$3,900</div>
+          <div class="sb-sub">active listing</div>
         </div>
       </div>
 
-      <figure class="card-figure" id="cardFigure" hidden>
-        <div class="canvas-wrap">
-          <canvas id="cardCanvas"></canvas>
-          <canvas id="overlayCanvas" class="overlay"></canvas>
+      <div class="panel chart-panel">
+        <div class="panel-head">
+          <span id="chartTitle">Price History · PSA 9</span>
+          <div class="range-tabs"><span class="active">1Y</span><span>90D</span><span>All</span></div>
         </div>
-        <figcaption>
-          <button id="resetBtn" class="link-btn" type="button">Choose a different image</button>
-        </figcaption>
-      </figure>
-    </section>
-
-    <!-- Right: assessment + result -->
-    <section class="panel grade-panel">
-      <h2>2. Condition</h2>
-      <p class="muted">
-        Centering is measured automatically from the image. Rate the rest on a
-        1–10 scale (10 = flawless).
-      </p>
-
-      <div class="subgrade" id="centeringRow">
-        <div class="subgrade-head">
-          <label>Centering</label>
-          <span class="auto-badge">auto</span>
-          <output id="centeringValue">—</output>
-        </div>
-        <div class="meter"><div class="meter-fill" id="centeringMeter"></div></div>
-        <p class="subgrade-note" id="centeringNote">Upload a card to measure centering.</p>
+        <svg id="priceChart" viewBox="0 0 580 95" width="100%" height="95" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
 
-      <div class="subgrade">
-        <div class="subgrade-head">
-          <label for="corners">Corners</label>
-          <output id="cornersValue">8.0</output>
-        </div>
-        <input type="range" id="corners" min="1" max="10" step="0.5" value="8" />
-        <p class="subgrade-note">Sharp &amp; clean = 10, fraying/whitening lowers it.</p>
+      <div class="panel">
+        <div class="panel-head sm"><span id="gcTitle">Grade Comparison · 30-day avg</span></div>
+        <div class="grade-comp" id="gradeComp"><!-- injected --></div>
       </div>
 
-      <div class="subgrade">
-        <div class="subgrade-head">
-          <label for="edges">Edges</label>
-          <output id="edgesValue">8.0</output>
+      <div class="sales">
+        <div class="sales-title">Recent Sales</div>
+        <div class="sales-row sales-head">
+          <div>Date</div><div>Card</div><div>Grade</div><div class="r">Price</div><div class="r">Platform</div>
         </div>
-        <input type="range" id="edges" min="1" max="10" step="0.5" value="8" />
-        <p class="subgrade-note">Check for nicks and whitening along all four sides.</p>
+        <div id="salesBody"><!-- injected --></div>
       </div>
 
-      <div class="subgrade">
-        <div class="subgrade-head">
-          <label for="surface">Surface</label>
-          <output id="surfaceValue">8.0</output>
-        </div>
-        <input type="range" id="surface" min="1" max="10" step="0.5" value="8" />
-        <p class="subgrade-note">Scratches, print lines, dents, holo scratches.</p>
+      <p class="data-note" id="dataNote">Price data is representative sample data for demonstration. The grade is computed for real from your photo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ VIEW: COLLECTION ============ -->
+<section id="view-collection" class="view" hidden>
+  <div class="portfolio">
+    <div class="pf-label">My Collection</div>
+    <div class="pf-value-row">
+      <div class="pf-value" id="pfValue">$47,230</div>
+      <div class="pf-delta up">↑ +8.4% <span>this month</span></div>
+    </div>
+    <div class="pf-stats">
+      <div><div class="pf-s-label">Cards</div><div class="pf-s-val" id="pfCards">24</div></div>
+      <div><div class="pf-s-label">PSA 9+</div><div class="pf-s-val">11</div></div>
+      <div><div class="pf-s-label">Cost Basis</div><div class="pf-s-val">$31,200</div></div>
+      <div><div class="pf-s-label">Unrealized Gain</div><div class="pf-s-val up">+$16,030</div></div>
+    </div>
+  </div>
+  <div class="holdings">
+    <div class="holdings-head">
+      <span>Holdings</span>
+      <div class="holdings-controls">
+        <span class="chip">Sort: Value ↓</span><span class="chip">Filter</span>
+        <span class="chip gold">+ Add Card</span>
       </div>
+    </div>
+    <div id="holdingsGrid" class="holdings-grid"><!-- injected --></div>
+  </div>
+</section>
+</main>
 
-      <div class="result" id="result" hidden>
-        <div class="grade-badge">
-          <span class="grade-number" id="gradeNumber">—</span>
-          <span class="grade-scale">/10</span>
-        </div>
-        <div class="grade-text">
-          <strong id="gradeLabel">—</strong>
-          <span id="gradeDesc" class="muted"></span>
-        </div>
-      </div>
-
-      <p class="disclaimer">
-        This is an estimate to help you self-assess a card. It is not affiliated
-        with PSA, CGC, or Beckett and is not an official grade.
-      </p>
-    </section>
-  </main>
-
-  <script src="app.js"></script>
+<script src="data.js"></script>
+<script src="grader.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
